@@ -13,7 +13,7 @@
 	xmlns:marc="http://www.loc.gov/MARC21/slim">
 <!-- 
 	NB: THIS UNAPPROVED DRAFT STYLESHEET – IT IS NOT APPROVED NORE IS IT INTENDED FOR DISTRIBUTION.
-	Revision 1.00 - 2015/04/06
+	Revision 1.00 - 2015/09/29
 
 	
 	This stylesheet transforms MODS records and collections of MODS records to BIBFRAME RDF/XML 
@@ -38,6 +38,9 @@
 	<xsl:output method="xml" indent="yes" encoding="UTF-8"/>
 	<!-- Strip unnecessary whitespace -->
 	<xsl:strip-space elements="*" />
+	
+	<!-- NOTE: check param construction -->
+	<xsl:param name="uri-base" select="'http://bibframe.org/resources/'"/>
 	
 	<!-- Notes Using marc2bibframe as a model for bibframe generation -->
 	<!-- Build RDF output -->
@@ -116,21 +119,21 @@
 		<!-- Pull it all together for URI -->
 		<xsl:choose>
 			<xsl:when test="$node/parent::mods:relatedItem">
-				<xsl:value-of select="concat('http://bibframe.org/resources/',$id,$ref-type,count($modsChild/preceding-sibling::*) + 1,$ref-subType,count($node/preceding-sibling::*) +1)"/>
+				<xsl:value-of select="concat($uri-base,$id,$ref-type,count($modsChild/preceding-sibling::*) + 1,$ref-subType,count($node/preceding-sibling::*) +1)"/>
 			</xsl:when>
 			<xsl:when test="$ref-type='work'">
-				<xsl:value-of select="concat('http://bibframe.org/resources/',$id)"/>
+				<xsl:value-of select="concat($uri-base,$id)"/>
 			</xsl:when>
 			<xsl:otherwise>
 				<xsl:choose>
 					<xsl:when test="$ref-type !=''">
-						<xsl:value-of select="concat('http://bibframe.org/resources/',$id,$ref-type,count($modsChild/preceding-sibling::*) +1)"/>
+						<xsl:value-of select="concat($uri-base,$id,$ref-type,count($modsChild/preceding-sibling::*) +1)"/>
 					</xsl:when>
 					<xsl:when test="$node/parent::mods:mods">
-						<xsl:value-of select="concat('http://bibframe.org/resources/',$id,local-name($node),count($modsChild/preceding-sibling::*) +1)"/>
+						<xsl:value-of select="concat($uri-base,$id,local-name($node),count($modsChild/preceding-sibling::*) +1)"/>
 					</xsl:when>
 					<xsl:otherwise>
-						<xsl:value-of select="concat('http://bibframe.org/resources/',$id,local-name($node),count($modsChild/preceding-sibling::*) +1)"/>
+						<xsl:value-of select="concat($uri-base,$id,local-name($node),count($modsChild/preceding-sibling::*) +1)"/>
 					</xsl:otherwise>
 				</xsl:choose>				
 			</xsl:otherwise>
@@ -291,9 +294,6 @@
 	</xsl:template>
 	
 	<!-- Build BIBFRAME Annotation -->
-	<!-- NOTE: what happens to the other tableOfContents? looks like they should appear inside bf:Instance-->
-	<!-- NOTE: what happens to the mods:notes? -->
-	<!-- Need to add hasAnnotation, instance or work?? -->
 	<xsl:template name="Annotation">
 		<xsl:for-each select="mods:recordInfo | mods:abstract | mods:tableOfContents[@xlink]">
 			<bf:Annotation xmlns:bf="http://bibframe.org/vocab/" 
@@ -1231,37 +1231,39 @@
 						<!-- WORK -->
 						<!--NOTE: Use MODSRDF for hierarchicalGeographic and its subelements under bf:place -->
 						<bf:place>
-							<xsl:choose>
-								<xsl:when test="mods:hierarchicalGeographic/@authority">
-									<bf:authorizedAccessPoint>
-										<xsl:value-of select="string-join(mods:hierarchicalGeographic/child::text(),'--')"/>
-									</bf:authorizedAccessPoint>							
-								</xsl:when>
-								<xsl:otherwise>
-									<bf:label><xsl:value-of select="string-join(mods:hierarchicalGeographic/child::text(),'--')"/></bf:label>
-								</xsl:otherwise>
-							</xsl:choose>
-							<xsl:choose>
-								<xsl:when test="mods:hierarchicalGeographic/@authorityURI">
-									<bf:hasAuthority rdf:resource="{mods:hierarchicalGeographic/@authorityURI}"/>
-								</xsl:when>
-								<xsl:otherwise>
-									<bf:hasAuthority>
-										<madsrdf:Authority>
-											<!-- NOTE, where ddoes this come from? rdf type? -->
-											<rdf:type rdf:resource="http://www.loc.gov/mads/rdf/v1#ComplexSubject"/>
-											<madsrdf:authoritativeLabel>
-												<xsl:value-of select="string-join(mods:hierarchicalGeographic/child::text(),'--')"/>
-											</madsrdf:authoritativeLabel>
-											<!-- 
-										Generate based on @authority value 
-										https://github.com/wsalesky/marc2bibframe/blob/master/modules/module.MARCXML-2-MADSRDF.xqy
-									-->
-											<madsrdf:isMemberOfMADSScheme rdf:resource="http://id.loc.gov/authorities/subjects"/>
-										</madsrdf:Authority>
-									</bf:hasAuthority>
-								</xsl:otherwise>
-							</xsl:choose>
+							<bf:Place>
+								<xsl:choose>
+									<xsl:when test="mods:hierarchicalGeographic/@authority">
+										<bf:authorizedAccessPoint>
+											<xsl:value-of select="string-join(mods:hierarchicalGeographic/child::*/text(),'--')"/>
+										</bf:authorizedAccessPoint>							
+									</xsl:when>
+									<xsl:otherwise>
+										<bf:label><xsl:value-of select="string-join(mods:hierarchicalGeographic/child::*/text(),'--')"/></bf:label>
+									</xsl:otherwise>
+								</xsl:choose>
+								<xsl:choose>
+									<xsl:when test="mods:hierarchicalGeographic/@authorityURI">
+										<bf:hasAuthority rdf:resource="{mods:hierarchicalGeographic/@authorityURI}"/>
+									</xsl:when>
+									<xsl:otherwise>
+										<bf:hasAuthority>
+											<madsrdf:Authority>
+												<!-- NOTE, where does this come from? rdf type? -->
+												<rdf:type rdf:resource="http://www.loc.gov/mads/rdf/v1#ComplexSubject"/>
+												<madsrdf:authoritativeLabel>
+													<xsl:value-of select="string-join(mods:hierarchicalGeographic/child::*/text(),'--')"/>
+												</madsrdf:authoritativeLabel>
+												<!-- 
+											Generate based on @authority value 
+											https://github.com/wsalesky/marc2bibframe/blob/master/modules/module.MARCXML-2-MADSRDF.xqy
+										-->
+												<madsrdf:isMemberOfMADSScheme rdf:resource="http://id.loc.gov/authorities/subjects"/>
+											</madsrdf:Authority>
+										</bf:hasAuthority>
+									</xsl:otherwise>
+								</xsl:choose>
+							</bf:Place>
 						</bf:place>
 						<!-- 
 					Question, does each child element get broken out into a seperate bf:place?
@@ -1390,7 +1392,7 @@
 			</xsl:when>
 			<xsl:otherwise>
 				<xsl:element name="bf:{$type}" namespace="http://bibframe.org/vocab/">
-					<xsl:attribute name="rdfresource" namespace="http://www.w3.org/1999/02/22-rdf-syntax-ns#" select="local:rdf-resource(.,'relatedItem')"/>
+					<xsl:attribute name="rdf:resource" namespace="http://www.w3.org/1999/02/22-rdf-syntax-ns#" select="local:rdf-resource(.,'relatedItem')"/>
 				</xsl:element>
 			</xsl:otherwise>
 		</xsl:choose>	
