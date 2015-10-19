@@ -250,6 +250,36 @@
 		</bf:Work>
 	</xsl:template>
 	
+	<!-- Build BIBFRAME Work -->
+	<xsl:template name="subject-work">
+		<bf:Work xmlns:bf="http://bibframe.org/vocab/" 
+			xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" 
+			xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+			xmlns:madsrdf="http://www.loc.gov/mads/rdf/v1#" 
+			xmlns:relators="http://id.loc.gov/vocabulary/relators/">
+			<!-- Title Authorized Access Point -->
+			<xsl:attribute name="about" namespace="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+				<xsl:choose>
+					<xsl:when test="self::mods:relatedItem"><xsl:value-of select="local:rdf-resource(.,'relatedItem')"/></xsl:when>
+					<xsl:otherwise><xsl:value-of select="local:rdf-resource(.,'work')"/></xsl:otherwise>
+				</xsl:choose>					
+			</xsl:attribute>
+			<!-- Add rdf:resource to bf:works with @valueURI, @xlink:href. Current use case is for mods:relatedItem -->
+			<xsl:choose>
+				<xsl:when test="self::*/@valueURI"><xsl:attribute name="about" namespace="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><xsl:value-of select="@valueURI"/></xsl:attribute></xsl:when>
+				<xsl:when test="self::*/@xlink:href"><xsl:attribute name="about" namespace="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><xsl:value-of select="@xlink:href"/></xsl:attribute></xsl:when>
+			</xsl:choose>
+			
+			<xsl:for-each select="mods:titleInfo[@type='uniform']|mods:titleInfo[not(@type)]">
+				<!-- Type? -->
+				<xsl:apply-templates select="mods:typeOfResource" mode="ref"/>
+				<xsl:call-template name="authorizedAccessPoint"/>
+				<!-- Title -->
+				<xsl:apply-templates select="." mode="ref"/>
+				<xsl:apply-templates select="."/>
+			</xsl:for-each>	
+		</bf:Work>
+	</xsl:template>
 	<!-- Build BIBFRAME Instance -->
 	<xsl:template name="instance">
 		<!-- Need to figure out how about numbers are generated -->
@@ -380,11 +410,21 @@
 	
 	<!-- Authorized access point @param nodes used for authorized acces points  -->
 	<xsl:template name="authorizedAccessPoint">
+		<xsl:variable name="value">
+			<xsl:choose>
+				<xsl:when test="parent::mods:subject">
+					<xsl:apply-templates select="parent::mods:subject" mode="string"/>
+				</xsl:when>
+				<xsl:otherwise>
+					<xsl:value-of select="normalize-space(string-join(node(),' '))"/>
+				</xsl:otherwise>
+			</xsl:choose>
+		</xsl:variable>
 		<bf:authorizedAccessPoint>
-			<xsl:value-of select="normalize-space(string-join(node(),' '))"/>
+			<xsl:value-of select="$value"/>
 		</bf:authorizedAccessPoint>
 		<!-- NOTE question about where this should be present-->
-		<bf:authorizedAccessPoint xml:lang="x-bf-hash"><xsl:value-of select="replace(lower-case(normalize-space(string-join(node(),''))),'([.,;:\[\]\s&quot;''])\s*','')"/></bf:authorizedAccessPoint>
+		<bf:authorizedAccessPoint xml:lang="x-bf-hash"><xsl:value-of select="replace(lower-case(normalize-space($value)),'([.,;:\[\]\s&quot;''])\s*','')"/></bf:authorizedAccessPoint>
 	</xsl:template>
 	
 	<!-- TitleInfo for Work -->
@@ -447,8 +487,15 @@
 	</xsl:template>	
 	
 	<xsl:template match="mods:titleInfo">
-		<bf:title><xsl:value-of select="string-join(child::*,' ')"/></bf:title>
-		<bf:title xml:lang="x-bf-sort"><xsl:value-of select="string-join(child::*[not(self::mods:nonSort)],' ')"/></bf:title>
+		<xsl:choose>
+			<xsl:when test="parent::mods:subject">
+				<bf:label><xsl:apply-templates select="parent::mods:subject" mode="string"/></bf:label>
+			</xsl:when>
+			<xsl:otherwise>
+				<bf:title><xsl:value-of select="string-join(child::*,' ')"/></bf:title>
+				<bf:title xml:lang="x-bf-sort"><xsl:value-of select="string-join(child::*[not(self::mods:nonSort)],' ')"/></bf:title>				
+			</xsl:otherwise>
+		</xsl:choose>
 	</xsl:template>
 	
 	<!--NOTE:  Looks like it should be keyTitle or TitleVariation, only question is where does it appear? in a new bf:title? or same -->
@@ -1215,7 +1262,7 @@
 					</xsl:when>
 					<!-- if child titleInfo create new work instance NOTE: should this just call titleInfo? Not sure why it is calling work -->
 					<xsl:when test="mods:titleInfo">
-						<xsl:call-template name="work"/>
+						<xsl:call-template name="subject-work"/>
 					</xsl:when>
 					<xsl:when test="mods:name">
 						<xsl:apply-templates/>
@@ -1265,9 +1312,7 @@
 								</xsl:choose>
 							</bf:Place>
 						</bf:place>
-						<!-- 
-					Question, does each child element get broken out into a seperate bf:place?
-				-->
+						<!-- Question, does each child element get broken out into a seperate bf:place? -->
 					</xsl:when>
 					<xsl:when test="mods:cartographics">
 						<!--Cartography  -->
@@ -1594,5 +1639,10 @@
 				</xsl:choose>
 			</xsl:attribute>
 		</bf:descriptionConventions>
+	</xsl:template>
+	
+	<!-- Template for outputting node as strings -->
+	<xsl:template match="*" mode="string">
+		<xsl:value-of select="string-join(descendant::text(),' ')"/>
 	</xsl:template>
 </xsl:stylesheet>
